@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Inventory Value — Past 13 Months</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --navy-950:#0b1220;
+    --navy-900:#111a2e;
+    --navy-800:#16223c;
+    --navy-700:#1d2c4a;
+    --line:#2a3a5c;
+    --text:#e8edf7;
+    --muted:#93a1c0;
+    --raw:#5b7fff;
+    --wip:#a463f2;
+    --fg:#33c2c9;
+    --total:#ff8a3d;
+    --up:#e2574c;
+    --down:#33c27a;
+    --flat:#e0b93d;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Segoe UI', Arial, sans-serif;
+    background:linear-gradient(180deg, var(--navy-950), var(--navy-900));
+    color:var(--text);
+    height:100vh;
+    padding:16px 24px;
+    overflow:hidden;
+  }
+  h1{
+    font-size:17px;
+    font-weight:600;
+    margin:0 0 12px;
+    letter-spacing:.2px;
+  }
+  .subtitle{
+    color:var(--muted);
+    font-size:11px;
+    margin-bottom:12px;
+  }
+  .layout{
+    display:grid;
+    grid-template-columns:190px 1fr;
+    gap:14px;
+    height:calc(100vh - 60px);
+  }
+  .panel{
+    background:var(--navy-800);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 14px;
+  }
+  .panel h2{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:1px;
+    color:var(--muted);
+    margin:0 0 8px;
+    font-weight:600;
+  }
+  .filter-group{margin-bottom:14px;}
+  .checkbox-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:4px 6px;
+    border-radius:6px;
+    cursor:pointer;
+    font-size:13px;
+    user-select:none;
+    transition:background .12s;
+  }
+  .checkbox-row:hover{background:var(--navy-700);}
+  .checkbox-row input{accent-color:#5b7fff;width:14px;height:14px;}
+  .swatch{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  select{
+    width:100%;
+    background:var(--navy-700);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:7px 8px;
+    font-size:13px;
+  }
+  .range-labels{
+    display:flex;
+    justify-content:space-between;
+    font-size:12px;
+    color:var(--text);
+    margin-top:10px;
+    font-weight:600;
+  }
+  .range-slider-wrap{
+    position:relative;
+    height:28px;
+    margin-top:6px;
+  }
+  .range-track{
+    position:absolute;
+    top:50%;
+    left:0;
+    right:0;
+    height:4px;
+    transform:translateY(-50%);
+    background:var(--navy-700);
+    border-radius:3px;
+  }
+  .range-fill{
+    position:absolute;
+    top:0;
+    height:100%;
+    background:var(--raw);
+    border-radius:3px;
+  }
+  .range-input{
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:28px;
+    margin:0;
+    background:none;
+    -webkit-appearance:none;
+    appearance:none;
+    pointer-events:none;
+  }
+  .range-input::-webkit-slider-runnable-track{
+    -webkit-appearance:none;
+    background:none;
+    height:28px;
+  }
+  .range-input::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    pointer-events:auto;
+    width:16px;
+    height:16px;
+    margin-top:6px;
+    border-radius:50%;
+    background:var(--text);
+    border:3px solid var(--raw);
+    cursor:pointer;
+    box-shadow:0 1px 3px rgba(0,0,0,.5);
+  }
+  .range-input::-moz-range-track{
+    background:none;
+    height:28px;
+  }
+  .range-input::-moz-range-thumb{
+    pointer-events:auto;
+    width:14px;
+    height:14px;
+    border-radius:50%;
+    background:var(--text);
+    border:3px solid var(--raw);
+    cursor:pointer;
+    box-shadow:0 1px 3px rgba(0,0,0,.5);
+  }
+  .main{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    height:100%;
+    min-height:0;
+  }
+  .cards{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:10px;
+    flex:0 0 auto;
+  }
+  .card{
+    background:var(--navy-800);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 14px;
+  }
+  .card .label{font-size:11px;color:var(--muted);margin-bottom:4px;}
+  .card .value{font-size:19px;font-weight:600;}
+  .card .delta{font-size:11px;margin-top:5px;display:flex;align-items:center;gap:6px;}
+  .card .delta .tag{color:var(--muted);width:30px;flex-shrink:0;font-weight:600;}
+  .card .delta.muted{color:var(--muted);opacity:.6;}
+  .chart-wrap{
+    background:var(--navy-800);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 18px 6px;
+    flex:0 0 260px;
+    min-height:0;
+  }
+  .table-panel{
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+  }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12px;
+  }
+  th, td{
+    padding:5px 12px;
+    text-align:right;
+    border-bottom:1px solid var(--line);
+  }
+  th:first-child, td:first-child{text-align:left;}
+  th{
+    color:var(--muted);
+    font-weight:600;
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.5px;
+    position:sticky;
+    top:0;
+    background:var(--navy-800);
+  }
+  tr:last-child td{border-bottom:none;}
+  tr.total-row td{font-weight:600;color:var(--text);border-top:1px solid var(--line);}
+  tr:hover td{background:var(--navy-700);}
+  .note{
+    font-size:10px;
+    color:var(--muted);
+    margin-top:8px;
+    line-height:1.4;
+  }
+</style>
+</head>
+<body>
+
+  <h1>Inventory Value — Past 13 Months</h1>
+
+  <div class="layout">
+    <div class="panel">
+      <div class="filter-group">
+        <h2>Series</h2>
+        <div id="seriesFilters"></div>
+      </div>
+      <div class="filter-group">
+        <h2>Month Range</h2>
+        <div class="range-slider-wrap">
+          <div class="range-track">
+            <div class="range-fill" id="rangeFill"></div>
+          </div>
+          <input type="range" id="startMonth" class="range-input" min="0" step="1">
+          <input type="range" id="endMonth" class="range-input" min="0" step="1">
+        </div>
+        <div class="range-labels">
+          <span id="startLabel"></span>
+          <span id="endLabel"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="cards" id="cardRow"></div>
+
+      <div class="chart-wrap">
+        <canvas id="trendChart"></canvas>
+      </div>
+
+      <div class="panel table-panel">
+        <h2>Monthly Detail</h2>
+        <table id="dataTable">
+          <thead>
+            <tr><th>Month</th><th>RAW</th><th>WIP</th><th>FG</th><th>Total</th></tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+const DATA = [
+  {"month":"06/01/2025","label":"Jun 2025","RAW":7949165.0,"WIP":3030968.0,"FG":1540234.0,"Total":12520367.0},
+  {"month":"07/01/2025","label":"Jul 2025","RAW":8642532.0,"WIP":2806931.0,"FG":1134145.0,"Total":12583608.0},
+  {"month":"08/01/2025","label":"Aug 2025","RAW":9338963.0,"WIP":2905935.0,"FG":1967527.0,"Total":14212425.0},
+  {"month":"09/01/2025","label":"Sep 2025","RAW":9131252.0,"WIP":3039344.0,"FG":1797553.0,"Total":13968149.0},
+  {"month":"10/01/2025","label":"Oct 2025","RAW":8955192.0,"WIP":3065011.0,"FG":1680871.0,"Total":13701074.0},
+  {"month":"11/01/2025","label":"Nov 2025","RAW":9470479.0,"WIP":3726983.0,"FG":2641251.0,"Total":15838713.0},
+  {"month":"12/01/2025","label":"Dec 2025","RAW":9481403.12,"WIP":3327806.97,"FG":2793746.17,"Total":15602956.26},
+  {"month":"01/01/2026","label":"Jan 2026","RAW":8986189.23,"WIP":3535530.71,"FG":1614189.06,"Total":14135909.0},
+  {"month":"02/01/2026","label":"Feb 2026","RAW":8755181.04,"WIP":3431456.76,"FG":1799769.34,"Total":13986407.14},
+  {"month":"03/01/2026","label":"Mar 2026","RAW":8941789.81,"WIP":3555829.96,"FG":1601760.18,"Total":14099379.95},
+  {"month":"04/01/2026","label":"Apr 2026","RAW":8930535.57,"WIP":3591518.45,"FG":1528901.16,"Total":14050955.18},
+  {"month":"05/01/2026","label":"May 2026","RAW":8846601.25,"WIP":3776822.58,"FG":1033404.52,"Total":13656828.35},
+  {"month":"06/01/2026","label":"Jun 2026","RAW":8071332.45,"WIP":3198412.26,"FG":1966102.92,"Total":13235847.63}
+];
+
+const SERIES = [
+  {key:'Total', color:getVar('--total')},
+  {key:'RAW',   color:getVar('--raw')},
+  {key:'WIP',   color:getVar('--wip')},
+  {key:'FG',    color:getVar('--fg')}
+];
+
+function getVar(name){
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+let activeSeries = new Set(SERIES.map(s=>s.key));
+
+// build series filter checkboxes
+const seriesFiltersEl = document.getElementById('seriesFilters');
+SERIES.forEach(s=>{
+  const row = document.createElement('label');
+  row.className = 'checkbox-row';
+  row.innerHTML = `<input type="checkbox" checked data-key="${s.key}">
+                   <span class="swatch" style="background:${s.color}"></span>
+                   <span>${s.key}</span>`;
+  seriesFiltersEl.appendChild(row);
+  row.querySelector('input').addEventListener('change', e=>{
+    if(e.target.checked) activeSeries.add(s.key);
+    else activeSeries.delete(s.key);
+    render();
+  });
+});
+
+// build month range slider
+const startSlider = document.getElementById('startMonth');
+const endSlider = document.getElementById('endMonth');
+const rangeFill = document.getElementById('rangeFill');
+const startLabel = document.getElementById('startLabel');
+const endLabel = document.getElementById('endLabel');
+
+let startIdx = 0, endIdx = DATA.length - 1;
+const maxIdx = DATA.length - 1;
+[startSlider, endSlider].forEach(s=>{ s.max = maxIdx; });
+startSlider.value = 0;
+endSlider.value = maxIdx;
+
+function updateSliderVisuals(){
+  const pctStart = (startIdx / maxIdx) * 100;
+  const pctEnd = (endIdx / maxIdx) * 100;
+  rangeFill.style.left = pctStart + '%';
+  rangeFill.style.width = (pctEnd - pctStart) + '%';
+  startLabel.textContent = DATA[startIdx].label;
+  endLabel.textContent = DATA[endIdx].label;
+  startSlider.style.zIndex = startIdx >= endIdx ? 3 : 2;
+  endSlider.style.zIndex = 2;
+}
+
+startSlider.addEventListener('input', ()=>{
+  startIdx = parseInt(startSlider.value);
+  if(startIdx > endIdx){ endIdx = startIdx; endSlider.value = endIdx; }
+  updateSliderVisuals();
+  render();
+});
+endSlider.addEventListener('input', ()=>{
+  endIdx = parseInt(endSlider.value);
+  if(endIdx < startIdx){ startIdx = endIdx; startSlider.value = startIdx; }
+  updateSliderVisuals();
+  render();
+});
+
+updateSliderVisuals();
+
+let chart;
+function render(){
+  const slice = DATA.slice(startIdx, endIdx+1);
+  const labels = slice.map(d=>d.label);
+
+  const datasets = SERIES.filter(s=>activeSeries.has(s.key)).map(s=>({
+    label: s.key,
+    data: slice.map(d=>d[s.key]),
+    borderColor: s.color,
+    backgroundColor: s.color,
+    borderWidth: 2.5,
+    pointRadius: 3,
+    pointHoverRadius: 5,
+    tension: 0.25,
+    fill: false
+  }));
+
+  if(chart) chart.destroy();
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{
+          labels:{ color: getVar('--text'), usePointStyle:true, pointStyle:'circle' }
+        },
+        tooltip:{
+          backgroundColor: getVar('--navy-700'),
+          titleColor: getVar('--text'),
+          bodyColor: getVar('--text'),
+          borderColor: getVar('--line'),
+          borderWidth:1,
+          callbacks:{
+            label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString(undefined,{maximumFractionDigits:0})}`
+          }
+        }
+      },
+      scales:{
+        x:{ ticks:{ color: getVar('--muted') }, grid:{ color: getVar('--line') } },
+        y:{
+          ticks:{
+            color: getVar('--muted'),
+            callback: v => '$' + (v/1000000).toFixed(0) + 'M'
+          },
+          grid:{ color: getVar('--line') }
+        }
+      }
+    }
+  });
+
+  renderCards(endIdx);
+  renderTable(slice);
+}
+
+function fmt(v){
+  return '$' + v.toLocaleString(undefined,{maximumFractionDigits:0});
+}
+
+function deltaRow(tag, diff, pct){
+  let arrow = '►', color = getVar('--flat');
+  if(diff > 0){ arrow = '▲'; color = getVar('--up'); }
+  else if(diff < 0){ arrow = '▼'; color = getVar('--down'); }
+  return `<div class="delta" style="color:${color}">
+            <span class="tag">${tag}</span>${arrow} ${fmt(Math.abs(diff))} (${pct.toFixed(1)}%)
+          </div>`;
+}
+
+function noDataRow(tag){
+  return `<div class="delta muted"><span class="tag">${tag}</span>—</div>`;
+}
+
+function renderCards(idx){
+  const cardRow = document.getElementById('cardRow');
+  cardRow.innerHTML = '';
+
+  const curr = DATA[idx];
+  const momPrior = idx > 0 ? DATA[idx-1] : null;
+
+  // find same calendar month, one year earlier
+  const currDate = new Date(curr.month);
+  const yoyPrior = DATA.find(d=>{
+    const dd = new Date(d.month);
+    return dd.getFullYear() === currDate.getFullYear() - 1 && dd.getMonth() === currDate.getMonth();
+  });
+
+  const cardsData = [
+    {label:'Total Value', key:'Total', color:getVar('--total')},
+    {label:'Current RAW', key:'RAW', color:getVar('--raw')},
+    {label:'Current WIP', key:'WIP', color:getVar('--wip')},
+    {label:'Current FG',  key:'FG',  color:getVar('--fg')}
+  ];
+
+  cardsData.forEach(c=>{
+    const val = curr[c.key];
+
+    let momHtml = noDataRow('MoM');
+    if(momPrior){
+      const diff = val - momPrior[c.key];
+      const pct = momPrior[c.key] !== 0 ? (diff/momPrior[c.key]*100) : 0;
+      momHtml = deltaRow('MoM', diff, pct);
+    }
+
+    let yoyHtml = noDataRow('YoY');
+    if(yoyPrior){
+      const diff = val - yoyPrior[c.key];
+      const pct = yoyPrior[c.key] !== 0 ? (diff/yoyPrior[c.key]*100) : 0;
+      yoyHtml = deltaRow('YoY', diff, pct);
+    }
+
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.innerHTML = `<div class="label">${c.label} — ${curr.label}</div>
+                      <div class="value" style="color:${c.color}">${fmt(val)}</div>
+                      ${momHtml}
+                      ${yoyHtml}`;
+    cardRow.appendChild(div);
+  });
+}
+
+function renderTable(slice){
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  slice.forEach(d=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${d.label}</td><td>${fmt(d.RAW)}</td><td>${fmt(d.WIP)}</td><td>${fmt(d.FG)}</td><td>${fmt(d.Total)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+render();
+</script>
+</body>
+</html>
